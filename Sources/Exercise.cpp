@@ -245,6 +245,7 @@ namespace {
 
 		Graphics::setRenderState(DepthTest, true);
 		Graphics::setRenderState(DepthTestCompare, ZCompareLess);
+		Graphics::setRenderState(DepthWrite, true);
 
 		Graphics::setTextureAddressing(tex, Kore::U, Repeat);
 		Graphics::setTextureAddressing(tex, Kore::V, Repeat);
