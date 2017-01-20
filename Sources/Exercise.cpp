@@ -136,7 +136,7 @@ namespace {
 
 	
 		// set the camera
-		P = mat4::Perspective(60, (float)width / (float)height, 0.1f, 100);
+		P = mat4::Perspective(pi / 4.0f, (float)width / (float)height, 0.1f, 100);
 		V = mat4::lookAt(position, vec3(0, 0, 1000), vec3(0, 1, 0));
 		Graphics::setMatrix(pLocation, P);
 		Graphics::setMatrix(vLocation, V);
