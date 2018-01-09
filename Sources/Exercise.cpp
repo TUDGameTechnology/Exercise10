@@ -5,9 +5,9 @@
 #include <Kore/System.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
-#include <Kore/Audio/Mixer.h>
-#include <Kore/Graphics/Image.h>
-#include <Kore/Graphics/Graphics.h>
+#include <Kore/Graphics1/Image.h>
+#include <Kore/Graphics4/Graphics.h>
+#include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Threads/Thread.h>
 #include <Kore/Threads/Mutex.h>
 #include "ObjLoader.h"
@@ -16,10 +16,10 @@ using namespace Kore;
 
 class MeshData {
 public:
-	MeshData(const char* meshFile, const VertexStructure& structure) {
+	MeshData(const char* meshFile, const Graphics4::VertexStructure& structure) {
 		mesh = loadObj(meshFile);
 		
-		vertexBuffer = new VertexBuffer(mesh->numVertices, structure);
+		vertexBuffer = new Graphics4::VertexBuffer(mesh->numVertices, structure);
 		float* vertices = vertexBuffer->lock();
 		for (int i = 0; i < mesh->numVertices; ++i) {
 			vertices[i * 8 + 0] = mesh->vertices[i * 8 + 0];
@@ -33,7 +33,7 @@ public:
 		}
 		vertexBuffer->unlock();
 
-		indexBuffer = new IndexBuffer(mesh->numFaces * 3);
+		indexBuffer = new Graphics4::IndexBuffer(mesh->numFaces * 3);
 		int* indices = indexBuffer->lock();
 		for (int i = 0; i < mesh->numFaces * 3; i++) {
 			indices[i] = mesh->indices[i];
@@ -41,45 +41,45 @@ public:
 		indexBuffer->unlock();
 	}
 
-	VertexBuffer* vertexBuffer;
-	IndexBuffer* indexBuffer;
+	Graphics4::VertexBuffer* vertexBuffer;
+	Graphics4::IndexBuffer* indexBuffer;
 	Mesh* mesh;
 };
 
 class MeshObject {
 public:
-	MeshObject(MeshData* mesh, Texture* image, vec3 position) : mesh(mesh), image(image) {
+	MeshObject(MeshData* mesh, Graphics4::Texture* image, vec3 position) : mesh(mesh), image(image) {
 		M = mat4::Translation(position.x(), position.y(), position.z());
 	}
 
-	void render(TextureUnit tex) {
-		Graphics::setTexture(tex, image);
-		Graphics::setVertexBuffer(*mesh->vertexBuffer);
-		Graphics::setIndexBuffer(*mesh->indexBuffer);
-		Graphics::drawIndexedVertices();
+	void render(Graphics4::TextureUnit tex) {
+		Graphics4::setTexture(tex, image);
+		Graphics4::setVertexBuffer(*mesh->vertexBuffer);
+		Graphics4::setIndexBuffer(*mesh->indexBuffer);
+		Graphics4::drawIndexedVertices();
 	}
 
-	void setTexture(Texture* tex) {
+	void setTexture(Graphics4::Texture* tex) {
 		image = tex;
 	}
 
-	Texture* getTexture() {
+	Graphics4::Texture* getTexture() {
 		return image;
 	}
 
 	mat4 M;
 private:
 	MeshData* mesh;
-	Texture* image;
+	Graphics4::Texture* image;
 };
 
 namespace {
 	const int width = 1024;
 	const int height = 768;
 	double startTime;
-	Shader* vertexShader;
-	Shader* fragmentShader;
-	Program* program;
+	Graphics4::Shader* vertexShader;
+	Graphics4::Shader* fragmentShader;
+	Graphics4::PipelineState* pipeline;
 
 	// null terminated array of MeshObject pointers
 	MeshObject** objects;
@@ -95,17 +95,17 @@ namespace {
 	Mutex streamMutex;
 
 	// uniform locations - add more as you see fit
-	TextureUnit tex;
-	ConstantLocation pLocation;
-	ConstantLocation vLocation;
-	ConstantLocation mLocation;
+	Graphics4::TextureUnit tex;
+	Graphics4::ConstantLocation pLocation;
+	Graphics4::ConstantLocation vLocation;
+	Graphics4::ConstantLocation mLocation;
 
 	float angle;
 
 	void stream(void*) {
 		for (;;) {
 			// to use a mutex, create a Mutex variable and call Create to initialize the mutex (see main()). Then you can use Lock/Unlock.
-			streamMutex.Lock();
+			streamMutex.lock();
 
 			// load darmstadt.jpg files for near boxes
 			// reload darmstadt.jpg for every box, pretend that every box has a different texture (I don't want to upload 100 images though)
@@ -115,13 +115,12 @@ namespace {
 			// Beware, neither OpenGL nor Direct3D is thread safe - you can't just create a Texture in a second thread. But you can create a Kore::Image
 			// in another thread, access it's pixels in the main thread and put them in a Kore::Texture using lock/unlock.
 
-			streamMutex.Unlock();
+			streamMutex.unlock();
 		}
 	}
 
 	void update() {
 		float t = (float)(System::time() - startTime);
-		Kore::Audio::update();
 
 		const float speed = 0.1f;
 		if (up) position.z() += speed;
@@ -129,17 +128,17 @@ namespace {
 		if (left) position.x() -= speed;
 		if (right) position.x() += speed;
 		
-		Graphics::begin();
-		Graphics::clear(Graphics::ClearColorFlag | Graphics::ClearDepthFlag, 0xff9999FF, 1.0f);
+		Graphics4::begin();
+		Graphics4::clear(Graphics4::ClearColorFlag | Graphics4::ClearDepthFlag, 0xff9999FF, 1.0f);
 		
-		program->set();
+		Graphics4::setPipeline(pipeline);
 
 	
 		// set the camera
 		P = mat4::Perspective(pi / 4.0f, (float)width / (float)height, 0.1f, 100);
 		V = mat4::lookAt(position, vec3(0, 0, 1000), vec3(0, 1, 0));
-		Graphics::setMatrix(pLocation, P);
-		Graphics::setMatrix(vLocation, V);
+		Graphics4::setMatrix(pLocation, P);
+		Graphics4::setMatrix(vLocation, V);
 
 
 		angle = t;
@@ -152,14 +151,14 @@ namespace {
 		MeshObject** current = &objects[0];
 		while (*current != nullptr) {
 			// set the model matrix
-			Graphics::setMatrix(mLocation, (*current)->M);
+			Graphics4::setMatrix(mLocation, (*current)->M);
 
 			(*current)->render(tex);
 			++current;
 		}
 
-		Graphics::end();
-		Graphics::swapBuffers();
+		Graphics4::end();
+		Graphics4::swapBuffers();
 	}
 
 	void mouseMove(int windowId, int x, int y, int movementX, int movementY) {
@@ -174,35 +173,35 @@ namespace {
 
 	}
 
-	void keyDown(KeyCode code, wchar_t character) {
+	void keyDown(KeyCode code) {
 		switch (code) {
-		case Key_Left:
+		case KeyLeft:
 			left = true;
 			break;
-		case Key_Right:
+		case KeyRight:
 			right = true;
 			break;
-		case Key_Up:
+		case KeyUp:
 			up = true;
 			break;
-		case Key_Down:
+		case KeyDown:
 			down = true;
 			break;
 		}
 	}
 
-	void keyUp(KeyCode code, wchar_t character) {
+	void keyUp(KeyCode code) {
 		switch (code) {
-		case Key_Left:
+		case KeyLeft:
 			left = false;
 			break;
-		case Key_Right:
+		case KeyRight:
 			right = false;
 			break;
-		case Key_Up:
+		case KeyUp:
 			up = false;
 			break;
-		case Key_Down:
+		case KeyDown:
 			down = false;
 			break;
 		}
@@ -212,24 +211,28 @@ namespace {
 	void init() {
 		FileReader vs("shader.vert");
 		FileReader fs("shader.frag");
-		vertexShader = new Shader(vs.readAll(), vs.size(), VertexShader);
-		fragmentShader = new Shader(fs.readAll(), fs.size(), FragmentShader);
+		vertexShader = new Graphics4::Shader(vs.readAll(), vs.size(), Graphics4::VertexShader);
+		fragmentShader = new Graphics4::Shader(fs.readAll(), fs.size(), Graphics4::FragmentShader);
 
 		// This defines the structure of your Vertex Buffer
-		VertexStructure structure;
-		structure.add("pos", Float3VertexData);
-		structure.add("tex", Float2VertexData);
-		structure.add("nor", Float3VertexData);
+		Graphics4::VertexStructure structure;
+		structure.add("pos", Graphics4::Float3VertexData);
+		structure.add("tex", Graphics4::Float2VertexData);
+		structure.add("nor", Graphics4::Float3VertexData);
 
-		program = new Program;
-		program->setVertexShader(vertexShader);
-		program->setFragmentShader(fragmentShader);
-		program->link(structure);
+		pipeline = new Graphics4::PipelineState;
+		pipeline->inputLayout[0] = &structure;
+		pipeline->inputLayout[1] = nullptr;
+		pipeline->vertexShader = vertexShader;
+		pipeline->fragmentShader = fragmentShader;
+		pipeline->depthMode = Graphics4::ZCompareLess;
+		pipeline->depthWrite = true;
+		pipeline->compile();
 
-		tex = program->getTextureUnit("tex");
-		pLocation = program->getConstantLocation("P");
-		vLocation = program->getConstantLocation("V");
-		mLocation = program->getConstantLocation("M");
+		tex = pipeline->getTextureUnit("tex");
+		pLocation = pipeline->getConstantLocation("P");
+		vLocation = pipeline->getConstantLocation("V");
+		mLocation = pipeline->getConstantLocation("M");
 
 		objects = new MeshObject*[101];
 		for (int i = 0; i < 101; ++i) objects[i] = nullptr;
@@ -237,32 +240,25 @@ namespace {
 		MeshData* mesh = new MeshData("box.obj", structure);
 		for (int y = 0; y < 10; ++y) {
 			for (int x = 0; x < 10; ++x) {
-				objects[y * 10 + x] = new MeshObject(mesh, new Texture("darmstadtmini.png", true), vec3((x - 5.0f) * 10, 0, (y - 5.0f) * 10));
+				objects[y * 10 + x] = new MeshObject(mesh, new Graphics4::Texture("darmstadtmini.png", true), vec3((x - 5.0f) * 10, 0, (y - 5.0f) * 10));
 			}
 		}
 
 		angle = 0.0f;
 
-		Graphics::setRenderState(DepthTest, true);
-		Graphics::setRenderState(DepthTestCompare, ZCompareLess);
-		Graphics::setRenderState(DepthWrite, true);
-
-		Graphics::setTextureAddressing(tex, Kore::U, Repeat);
-		Graphics::setTextureAddressing(tex, Kore::V, Repeat);
+		Graphics4::setTextureAddressing(tex, Graphics4::U, Graphics4::Repeat);
+		Graphics4::setTextureAddressing(tex, Graphics4::V, Graphics4::Repeat);
 	}
 }
 
 int kore(int argc, char** argv) {
-	Kore::System::init("Exercise 11", width, height);
+	Kore::System::init("Exercise 10", width, height);
 	
 	init();
 
 	Kore::System::setCallback(update);
 
 	startTime = System::time();
-	Kore::Mixer::init();
-	Kore::Audio::init();
-	//Kore::Mixer::play(new SoundStream("back.ogg", true));
 	
 	Keyboard::the()->KeyDown = keyDown;
 	Keyboard::the()->KeyUp = keyUp;
@@ -270,7 +266,7 @@ int kore(int argc, char** argv) {
 	Mouse::the()->Press = mousePress;
 	Mouse::the()->Release = mouseRelease;
 
-	streamMutex.Create();
+	streamMutex.create();
 	Kore::threadsInit();
 	streamingThread = Kore::createAndRunThread(stream, nullptr);
 
