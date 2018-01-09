@@ -5,12 +5,13 @@ struct Mesh {
 	int numVertices;
 	int numUVs;
 	int numNormals;
-
+	int numIndices;
+	
 	float* vertices;
 	int* indices;
 	float* uvs;
 	float * normals;
-
+	
 	// very private
 	float* curVertex;
 	int* curIndex;
